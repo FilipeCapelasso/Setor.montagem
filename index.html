@@ -68,6 +68,13 @@ h1{font-size:2rem}h2{font-size:1.6rem;margin:8px 0 14px}
 .card.dn .row{font-size:1.6rem}.card.dn p{font-size:1.2rem}
 .bat{border-width:3px}.bat span{padding:4px 14px;font-size:1.8rem}.bat i{padding:0 12px}
 #toasts{top:8px}.toast{max-width:none;font-size:1.3rem;padding:18px 22px;border-left-width:14px}.toast small{font-size:1.2rem}
+.db{position:relative;display:flex;align-items:stretch;gap:8px;margin:4px 0 10px}.nb{min-width:56px;height:64px;border:2px solid #B5BDB6;border-radius:8px;background:var(--card);font-size:2rem;font-weight:700;cursor:pointer}
+.dpb{flex:1;min-height:64px;border:2px solid var(--ink);border-radius:8px;background:var(--card);font-size:1.15rem;font-weight:700;cursor:pointer;padding:6px 10px}
+.dti{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none}.dsub{margin-bottom:10px}#dtag{font-size:1.3rem;font-weight:600}
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:16px}.wd{display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 2px;border:2px solid #B5BDB6;border-radius:8px;background:var(--card);cursor:pointer}
+.wd span{font-size:.75rem;color:var(--steel);font-weight:600}.wd b{font-size:1.4rem}.wd small{font-size:.75rem;color:var(--steel)}.wd.td{border-color:var(--info)}.wd.hp small{color:var(--pend);font-weight:700}.wd[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}.wd[aria-pressed=true] span,.wd[aria-pressed=true] small{color:#fff}
+.hr{font-size:1.3rem;font-weight:600;color:var(--info);margin-bottom:6px}.warn{font-size:1.15rem}.warn .lk{font-size:1.15rem;font-weight:700;text-decoration:underline}
+@media(max-width:420px){.wd b{font-size:1.1rem}.wd small{font-size:.65rem}}
 </style>
 </head>
 <body>
@@ -110,7 +117,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&
 const bat=(c,l)=>c?'<span class="bat'+(l?' lg':'')+'"><i aria-hidden="true">🔋</i><span class="mono">'+esc(c)+'</span></span>':'<span class="mut">Aguardando</span>';
 
 /* ---------- dados + realtime ---------- */
-let sb,ch,motos=[],loaded=false,loadErr=false,conn='connecting';const removed=new Set(),hooks={render(){},onActivated:null};
+let sb,ch,motos=[],loaded=false,loadErr=false,conn='connecting';const removed=new Set(),hooks={render(){},onActivated:null,onNew:null};
 const ts=m=>Date.parse(m.updated_at);
 function setConn(s){conn=s;const e=$('#conn');if(e)e.textContent={connected:'🟢 Conectado',reconnecting:'🟠 Reconectando...',connecting:'🟠 Conectando...'}[s]}
 function dbInfo(){
@@ -120,6 +127,7 @@ function dbInfo(){
 
 function upsert(m,remote){if(removed.has(m.id))return;const i=motos.findIndex(x=>x.id===m.id),o=motos[i];if(o&&ts(o)>ts(m))return;
  if(remote&&o&&o.status!=='ativada'&&m.status==='ativada'&&hooks.onActivated)hooks.onActivated(m);
+ if(remote&&!o&&hooks.onNew)hooks.onNew(m);
  if(i>=0)motos[i]=m;else{motos.push(m);motos.sort((a,b)=>a.seq-b.seq)}hooks.render()}
 function drop(id){removed.add(id);motos=motos.filter(x=>x.id!==id);hooks.render()}
 async function load(){const r=await sb.from('motos').select('*').order('seq');
@@ -146,14 +154,31 @@ actions.retry=load;actions.close=closeModal;
 
 /* ---------- MONTAGEM ---------- */
 function assembly(){
+ const pad=n=>String(n).padStart(2,'0'),iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),today=()=>iso(new Date()),addD=(s,n)=>{const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+n);return iso(d)};
+ const lbl=s=>new Date(s+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).toUpperCase(),sh=s=>s.slice(8)+'/'+s.slice(5,7);
+ const diff=(a,b)=>Math.round((new Date(a+'T12:00:00')-new Date(b+'T12:00:00'))/864e5);
+ const dtg=s=>{const x=diff(s,today());return x===0?'Hoje':x===1?'Amanhã':x===-1?'Ontem':x>1?'em '+x+' dias':'há '+(-x)+' dias'};
+ const md=m=>m.data||today(),cmp=(a,b)=>{const x=a.horario||'99',y=b.horario||'99';return x<y?-1:x>y?1:a.seq-b.seq};
+ let day=today();
  $('#app').innerHTML='<header class="hd"><div class="wrap narrow"><div class="row"><h1>Montagem de Motos</h1><span id="conn" class="mut"></span></div><b id="pc" class="big" aria-live="polite"></b></div></header>'
- +'<main class="wrap narrow"><p id="load" class="mid"></p><div id="body" hidden><ul id="pend" class="list" aria-label="Motos pendentes"></ul><p id="empty" class="empty mut" hidden>Nenhuma moto aguardando montagem.</p><section id="dsec" hidden><h2 id="dh"></h2><ul id="done" class="list" style="gap:8px"></ul></section></div></main>';
+ +'<main class="wrap narrow"><p id="load" class="mid"></p><div id="body" hidden>'
+ +'<div class="db"><button class="nb" data-a="dprev" title="Dia anterior (Alt+←)" aria-label="Dia anterior">‹</button><button class="dpb" data-a="pick" title="Escolher data"><span id="dl"></span> ▾</button><input id="dt" type="date" class="dti" tabindex="-1" aria-hidden="true"><button class="nb" data-a="dnext" title="Próximo dia (Alt+→)" aria-label="Próximo dia">›</button></div>'
+ +'<div class="row dsub"><button class="btn" data-a="hoje" title="Ir para hoje (Alt+0)">📅 Hoje</button><span id="dtag" class="mut"></span></div>'
+ +'<div id="wk" class="wk" aria-label="Semana"></div><p id="oth" class="warn" hidden></p>'
+ +'<ul id="pend" class="list" aria-label="Motos pendentes"></ul><p id="empty" class="empty mut" hidden>Nenhuma moto aguardando montagem neste dia.</p><section id="dsec" hidden><h2 id="dh"></h2><ul id="done" class="list" style="gap:8px"></ul></section></div></main>';
  setConn(conn);
- const fill=(li,m)=>{li.querySelector('.mdl').textContent=m.modelo;li.querySelector('.cor').textContent=m.cor;li.querySelector('.ch').textContent=m.chassi};
- const updD=(li,m)=>{li.innerHTML='<div class="row"><b>'+esc(m.modelo)+' <span class="mut">· '+esc(m.cor)+'</span></b><b class="okc">✅ Ativada</b></div><p class="mut">Chassi <span class="mono ink">'+esc(m.chassi)+'</span> · '+ft(m.activated_at)+'</p>'+bat(m.codigo_bateria)};
+ const setDay=d=>{day=d;hooks.render()};
+ actions.dprev=()=>setDay(addD(day,-1));actions.dnext=()=>setDay(addD(day,1));actions.hoje=()=>setDay(today());actions.day=id=>setDay(id);actions.jump=id=>setDay(id);
+ actions.pick=()=>{const t=$('#dt');t.value=day;try{t.showPicker()}catch(e){t.focus();t.click()}};
+ $('#dt').onchange=e=>{if(e.target.value)setDay(e.target.value)};
+ addEventListener('keydown',e=>{if(e.altKey&&(e.key==='ArrowLeft'||e.key==='ArrowRight'||e.code==='Digit0')){e.preventDefault();setDay(e.code==='Digit0'?today():addD(day,e.key==='ArrowLeft'?-1:1))}});
+ hooks.onNew=m=>toast('🏍️ Nova moto cadastrada',m.modelo+' · '+m.cor+' — '+m.chassi+(m.data?' · '+sh(m.data)+(m.horario?' '+m.horario:''):''));
+ const hr=m=>m.horario?'🕒 '+m.horario:'🕒 Sem horário';
+ const fill=(li,m)=>{li.querySelector('.hr').textContent=hr(m);li.querySelector('.mdl').textContent=m.modelo;li.querySelector('.cor').textContent=m.cor;li.querySelector('.ch').textContent=m.chassi};
+ const updD=(li,m)=>{li.innerHTML='<div class="row"><b>'+esc(m.modelo)+' <span class="mut">· '+esc(m.cor)+'</span></b><b class="okc">✅ Ativada</b></div><p class="mut">'+(m.horario?'🕒 '+esc(m.horario)+' · ':'')+'Chassi <span class="mono ink">'+esc(m.chassi)+'</span> · '+ft(m.activated_at)+'</p>'+bat(m.codigo_bateria)};
  const makeD=m=>{const li=document.createElement('li');li.className='card dn';li.dataset.id=m.id;updD(li,m);return li};
  const makeP=m=>{const li=document.createElement('li');li.className='card';li.dataset.id=m.id;
-  li.innerHTML='<p class="mdl"></p><p class="mut cor"></p><p class="mut sm" style="margin-top:10px">Chassi</p><p class="mono ch"></p><form novalidate><label for="b-'+m.id+'" style="margin-top:0">Código da bateria</label><input id="b-'+m.id+'" class="bi mono" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Ex.: BAT-8F42"><p class="err" role="alert" hidden></p><button class="btn okb">✅ Confirmar ativação</button></form>';
+  li.innerHTML='<p class="mono hr"></p><p class="mdl"></p><p class="mut cor"></p><p class="mut sm" style="margin-top:10px">Chassi</p><p class="mono ch"></p><form novalidate><label for="b-'+m.id+'" style="margin-top:0">Código da bateria</label><input id="b-'+m.id+'" class="bi mono" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Ex.: BAT-8F42"><p class="err" role="alert" hidden></p><button class="btn okb">✅ Confirmar ativação</button></form>';
   fill(li,m);const f=li.querySelector('form'),inp=li.querySelector('input'),er=li.querySelector('.err'),bt=li.querySelector('button');
   inp.oninput=()=>{er.hidden=true};
   f.onsubmit=async e=>{e.preventDefault();if(bt.disabled)return;const x=vBat(inp.value);if(x){er.textContent='⚠️ '+x;er.hidden=false;return}
@@ -163,8 +188,14 @@ function assembly(){
    finally{bt.disabled=inp.disabled=false;bt.textContent='✅ Confirmar ativação'}};
   return li};
  hooks.render=()=>{$('#load').hidden=loaded;$('#body').hidden=!loaded;if(!loaded){$('#load').innerHTML=loadHtml();$('#pc').textContent='';return}
-  const x=new Date(),hj=x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'),p=motos.filter(m=>m.status!=='ativada'&&(!m.data||m.data<=hj)),d=motos.filter(m=>m.status==='ativada'&&(!m.data||m.data===hj));
-  $('#pc').textContent='Pendentes: '+p.length;
+  const per=new Map();motos.forEach(m=>{const k=md(m),o=per.get(k)||{p:0,t:0};o.t++;if(m.status!=='ativada')o.p++;per.set(k,o)});
+  const dm=motos.filter(m=>md(m)===day),p=dm.filter(m=>m.status!=='ativada').sort(cmp),d=dm.filter(m=>m.status==='ativada').sort(cmp);
+  $('#pc').textContent='Pendentes: '+p.length;$('#dl').textContent=lbl(day);$('#dtag').textContent=dtg(day);
+  const w0=addD(day,-((new Date(day+'T12:00:00').getDay()+6)%7)),hj=today();
+  $('#wk').innerHTML=[0,1,2,3,4,5,6].map(i=>{const x=addD(w0,i),o=per.get(x)||{p:0,t:0};
+   return `<button class="wd${x===hj?' td':''}${o.p?' hp':''}" data-a="day" data-id="${x}" aria-pressed="${x===day}" title="${lbl(x)}"><span>${['SEG','TER','QUA','QUI','SEX','SÁB','DOM'][i]}</span><b>${x.slice(8)}</b><small>${o.p?o.p+' pend.':o.t?'✓ '+o.t:'—'}</small></button>`}).join('');
+  const oth=[...per].filter(([k,o])=>k!==day&&o.p>0).sort((a,b)=>Math.abs(diff(a[0],day))-Math.abs(diff(b[0],day))||(a[0]<b[0]?-1:1)),tot=oth.reduce((n,[,o])=>n+o.p,0);
+  $('#oth').hidden=!tot;if(tot)$('#oth').innerHTML='⚠️ '+tot+(tot===1?' moto pendente':' motos pendentes')+' em outros dias <button class="lk" data-a="jump" data-id="'+esc(oth[0][0])+'">Ir para '+sh(oth[0][0])+'</button>';
   reconcile($('#pend'),p,makeP,fill);reconcile($('#done'),d,makeD,updD);
   $('#empty').hidden=p.length>0;$('#dsec').hidden=!d.length;$('#dh').textContent='Ativadas: '+d.length};
  connect()}
