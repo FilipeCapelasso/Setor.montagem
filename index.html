@@ -163,7 +163,7 @@ function assembly(){
    finally{bt.disabled=inp.disabled=false;bt.textContent='✅ Confirmar ativação'}};
   return li};
  hooks.render=()=>{$('#load').hidden=loaded;$('#body').hidden=!loaded;if(!loaded){$('#load').innerHTML=loadHtml();$('#pc').textContent='';return}
-  const p=motos.filter(m=>m.status!=='ativada'),d=motos.filter(m=>m.status==='ativada');
+  const x=new Date(),hj=x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'),p=motos.filter(m=>m.status!=='ativada'&&(!m.data||m.data<=hj)),d=motos.filter(m=>m.status==='ativada'&&(!m.data||m.data===hj));
   $('#pc').textContent='Pendentes: '+p.length;
   reconcile($('#pend'),p,makeP,fill);reconcile($('#done'),d,makeD,updD);
   $('#empty').hidden=p.length>0;$('#dsec').hidden=!d.length;$('#dh').textContent='Ativadas: '+d.length};
