@@ -61,7 +61,7 @@ h1{font-size:2rem}h2{font-size:1.6rem;margin:8px 0 14px}
 .ch{font-size:3rem;font-weight:600;letter-spacing:.06em}
 .card .sm{font-size:1.15rem}
 .card label{font-size:1.4rem;font-weight:700}
-.bi{height:72px;font-size:2rem;border-width:3px;border-color:var(--ink)}
+.bi{height:72px;font-size:2.2rem;border-width:3px;border-color:var(--ink);letter-spacing:.12em;text-align:center}.bi::placeholder{letter-spacing:.08em;color:#8A949B}
 .card .btn.okb{height:72px;font-size:1.5rem;margin-top:18px}
 .err{font-size:1.3rem;padding:14px 16px;font-weight:600}
 .empty{font-size:1.6rem;padding:48px 20px;border-width:3px}
@@ -97,12 +97,12 @@ addEventListener('hashchange',()=>location.reload());
 
 /* ---------- validação ---------- */
 const vChassi=v=>!v?'Informe os 6 últimos dígitos do chassi.':/\D/.test(v)?'O chassi deve conter somente números (sem espaços).':v.length>6?MSG.over:v.length<6?'O chassi precisa ter exatamente 6 dígitos.':null;
-const vBat=v=>{v=v.trim().toUpperCase();return !v?'Informe o código da bateria.':!/^[A-Z0-9][A-Z0-9\-_/. ]{2,29}$/.test(v)?'Código inválido. Use letras, números e hífen (3 a 30 caracteres).':null};
+const vBat=v=>{v=v.trim();if(!v)return 'Informe a data da bateria.';if(/[^0-9\/.\-\s]/.test(v))return 'Digite somente números: dia, mês e ano (ex.: 12/05/26).';const d=v.replace(/\D/g,'');if(d.length!==6)return 'Digite 6 números: dia, mês e ano (ex.: 12/05/26).';const dd=+d.slice(0,2),mm=+d.slice(2,4),yy=2000+(+d.slice(4)),t=new Date(yy,mm-1,dd);return t.getFullYear()===yy&&t.getMonth()===mm-1&&t.getDate()===dd?null:'Data inválida. Confira o dia e o mês (ex.: 12/05/26).'};
 function fail(e){const t=((e&&e.message)||'')+' '+((e&&e.details)||''),c=e&&e.code;
  if(t.includes('BATERIA_DUPLICADA')||(c==='23505'&&t.includes('codigo_bateria')))return 'Código de bateria já utilizado. Esse código já está associado a outra moto.';
  if(c==='23505'&&t.includes('chassi'))return 'Chassi já cadastrado.';
- if(t.includes('BATERIA_VAZIA'))return 'Informe o código da bateria.';
- if(t.includes('BATERIA_INVALIDA'))return 'Código inválido. Use letras, números e hífen (3 a 30 caracteres).';
+ if(t.includes('BATERIA_VAZIA'))return 'Informe a data da bateria.';
+ if(t.includes('BATERIA_INVALIDA'))return 'Data inválida. Digite dia, mês e ano (ex.: 12/05/26).';
  if(t.includes('MOTO_INEXISTENTE'))return 'Esta moto não existe mais. Ela pode ter sido removida pela entrega.';
  return MSG.gen}
 
@@ -114,7 +114,8 @@ $('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal
 addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 const actions={};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b&&actions[b.dataset.a])actions[b.dataset.a](b.dataset.id,b)});
-const bat=(c,l)=>c?'<span class="bat'+(l?' lg':'')+'"><i aria-hidden="true">🔋</i><span class="mono">'+esc(c)+'</span></span>':'<span class="mut">Aguardando</span>';
+const fmtBat=c=>/^\d{6}$/.test(c)?c.slice(0,2)+'/'+c.slice(2,4)+'/'+c.slice(4):c;
+const bat=(c,l)=>c?'<span class="bat'+(l?' lg':'')+'"><i aria-hidden="true">🔋</i><span class="mono">'+esc(fmtBat(c))+'</span></span>':'<span class="mut">Aguardando</span>';
 
 /* ---------- dados + realtime ---------- */
 let sb,ch,motos=[],loaded=false,loadErr=false,conn='connecting';const removed=new Set(),hooks={render(){},onActivated:null,onNew:null};
@@ -178,12 +179,12 @@ function assembly(){
  const updD=(li,m)=>{li.innerHTML='<div class="row"><b>'+esc(m.modelo)+' <span class="mut">· '+esc(m.cor)+'</span></b><b class="okc">✅ Ativada</b></div><p class="mut">'+(m.horario?'🕒 '+esc(m.horario)+' · ':'')+'Chassi <span class="mono ink">'+esc(m.chassi)+'</span> · '+ft(m.activated_at)+'</p>'+bat(m.codigo_bateria)};
  const makeD=m=>{const li=document.createElement('li');li.className='card dn';li.dataset.id=m.id;updD(li,m);return li};
  const makeP=m=>{const li=document.createElement('li');li.className='card';li.dataset.id=m.id;
-  li.innerHTML='<p class="mono hr"></p><p class="mdl"></p><p class="mut cor"></p><p class="mut sm" style="margin-top:10px">Chassi</p><p class="mono ch"></p><form novalidate><label for="b-'+m.id+'" style="margin-top:0">Código da bateria</label><input id="b-'+m.id+'" class="bi mono" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="Ex.: BAT-8F42"><p class="err" role="alert" hidden></p><button class="btn okb">✅ Confirmar ativação</button></form>';
+  li.innerHTML='<p class="mono hr"></p><p class="mdl"></p><p class="mut cor"></p><p class="mut sm" style="margin-top:10px">Chassi</p><p class="mono ch"></p><form novalidate><label for="b-'+m.id+'" style="margin-top:0">Código da bateria <span class="mut sm">· dia/mês/ano</span></label><input id="b-'+m.id+'" class="bi mono" type="text" inputmode="numeric" maxlength="8" autocorrect="off" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="DD/MM/AA"><p class="err" role="alert" hidden></p><button class="btn okb">✅ Confirmar ativação</button></form>';
   fill(li,m);const f=li.querySelector('form'),inp=li.querySelector('input'),er=li.querySelector('.err'),bt=li.querySelector('button');
-  inp.oninput=()=>{er.hidden=true};
+  inp.oninput=()=>{er.hidden=true;const d=inp.value.replace(/\D/g,'').slice(0,6);inp.value=d.length>4?d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4):d.length>2?d.slice(0,2)+'/'+d.slice(2):d};
   f.onsubmit=async e=>{e.preventDefault();if(bt.disabled)return;const x=vBat(inp.value);if(x){er.textContent='⚠️ '+x;er.hidden=false;return}
    bt.disabled=inp.disabled=true;bt.textContent='⏳ Salvando...';
-   try{const r=await activate(m.id,inp.value);upsert(r,false);toast('✅ Bateria ativada com sucesso.',r.modelo+' — '+r.chassi)}
+   try{const r=await activate(m.id,inp.value.replace(/\D/g,''));upsert(r,false);toast('✅ Bateria ativada com sucesso.',r.modelo+' — '+r.chassi)}
    catch(y){er.textContent='⚠️ '+fail(y);er.hidden=false}
    finally{bt.disabled=inp.disabled=false;bt.textContent='✅ Confirmar ativação'}};
   return li};
